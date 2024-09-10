@@ -7,3 +7,6 @@ textblob
 numpy
 tensorflow
 tf-keras
+google-generativeai
+python-dotenv
+pathlib
