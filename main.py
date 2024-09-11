@@ -75,6 +75,62 @@ def visualize_clustered_skills(skills, clusters):
     plt.title('Skills Distribution by Cluster')
     st.pyplot(plt)
 
+# Function to extract education details
+def extract_education(text):
+    education_details = [edu for edu in EDUCATION_DB if re.search(r'\b' + re.escape(edu) + r'\b', text, re.IGNORECASE)]
+    return education_details
+
+# Function to calculate total years of experience based on dates found in the resume
+def extract_experience_duration(text):
+    dates = re.findall(r'(19|20)\d{2}', text)
+    if dates:
+        years = list(map(int, dates))
+        years.sort()
+        return years[-1] - years[0] if years else 0
+    return 0
+
+# Function to extract company names and job titles
+def extract_companies_job_titles(text):
+    company_pattern = r'\b(?:Inc|LLC|Ltd|Technologies|Corp|Company|Enterprises|Solutions)\b'
+    title_pattern = r'\b(?:Manager|Engineer|Developer|Analyst|Consultant|Specialist|Lead|Director)\b'
+    
+    companies = re.findall(r'\b[A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)*(?: ' + company_pattern + r')', text)
+    job_titles = re.findall(title_pattern, text)
+    
+    return companies, job_titles
+
+# Function to visualize experience timeline
+def visualize_experience_timeline(companies, dates):
+    if not companies or not dates:
+        st.write("Not enough data to display the experience timeline.")
+        return
+
+    # Ensure lengths are the same
+    min_length = min(len(companies), len(dates))
+    if min_length == 0:
+        st.write("No data available for experience timeline.")
+        return
+
+    companies = companies[:min_length]
+    dates = dates[:min_length]
+
+    # Create DataFrame
+    experience_df = pd.DataFrame({'Company': companies, 'Year': dates})
+
+    # Convert 'Year' to numeric
+    try:
+        experience_df['Year'] = pd.to_numeric(experience_df['Year'])
+    except ValueError:
+        st.write("Error converting years to numeric values.")
+        return
+
+    # Plot
+    fig, ax = plt.subplots()
+    experience_df.set_index('Year').plot(kind='barh', ax=ax, legend=False)
+    ax.set_xlabel('Year')
+    ax.set_ylabel('Company')
+    st.pyplot(fig)
+
 # Main Streamlit app
 def main():
     st.title("Enhanced Smart Resume Analyzer")
@@ -91,9 +147,9 @@ def main():
         preprocessed_text = preprocess_text(resume_text)
         
         # Analyze Career Objectives
-        career_objective = re.search(r'career objective(.*?)(education|experience|skills|certifications)', preprocessed_text, re.S)
-        if career_objective:
-            career_objective_text = career_objective.group(1)
+        career_objective_match = re.search(r'career objective(.*?)(education|experience|skills|certifications)', preprocessed_text, re.S)
+        if career_objective_match:
+            career_objective_text = career_objective_match.group(1)
             sentiment_scores = analyze_sentiment(career_objective_text)
             st.subheader("Career Objective Sentiment Analysis:")
             st.write(f"Sentiment Scores: {sentiment_scores}")
@@ -106,28 +162,42 @@ def main():
             st.write(", ".join(skills) if skills else "No skills found")
             st.subheader("Skills Word Cloud")
             generate_wordcloud(skills)
-            clusters, cluster_centers = cluster_skills(skills)
+            clusters, _ = cluster_skills(skills)
             st.subheader("Clustered Skills Analysis")
             visualize_clustered_skills(skills, clusters)
         
         # Extract Education Details
-        education = [edu for edu in EDUCATION_DB if re.search(r'\b' + re.escape(edu) + r'\b', preprocessed_text, re.IGNORECASE)]
+        education = extract_education(preprocessed_text)
         st.subheader("Education Details:")
         st.write(", ".join(education) if education else "No education details found")
 
         # Total Years of Experience
-        experience_duration = re.findall(r'(19|20)\d{2}', resume_text)
-        if experience_duration:
-            experience_duration = sorted(set(int(year) for year in experience_duration))
-            total_experience = experience_duration[-1] - experience_duration[0] if len(experience_duration) > 1 else 0
-            st.subheader("Total Years of Experience:")
-            st.write(f"{total_experience} years")
+        experience_duration = extract_experience_duration(resume_text)
+        st.subheader("Total Years of Experience:")
+        st.write(f"{experience_duration} years")
 
-        # Contact Information
-        email, phone = re.findall(r'\S+@\S+', resume_text), re.findall(r'\b\d{10}\b', resume_text)
-        st.subheader("Contact Information:")
-        st.write(f"Email: {', '.join(email) if email else 'No email found'}")
-        st.write(f"Phone: {', '.join(phone) if phone else 'No phone number found'}")
+        # Companies and Job Titles
+        companies, job_titles = extract_companies_job_titles(resume_text)
+        st.subheader("Companies Worked For:")
+        st.write(", ".join(companies) if companies else "No companies found")
+
+        st.subheader("Job Titles:")
+        st.write(", ".join(job_titles) if job_titles else "No job titles found")
+
+        # Experience Timeline
+        experience_dates = re.findall(r'(19|20)\d{2}', resume_text)
+        if companies and experience_dates:
+            visualize_experience_timeline(companies[:len(experience_dates)], experience_dates)
+
+        # Job Description Matching (optional)
+        st.subheader("Job Description Matching")
+        job_desc = st.text_area("Paste Job Description", "")
+        if job_desc:
+            job_skills = [skill for skill in SKILLS_DB if re.search(r'\b' + re.escape(skill) + r'\b', preprocess_text(job_desc), re.IGNORECASE)]
+            matched_skills = {cat: [skill for skill in skills if skill in job_skills] for cat, skills in SKILLS_DB.items()}
+            st.write("Matched Skills by Category:")
+            for category, skills in matched_skills.items():
+                st.write(f"{category}: {', '.join(skills) if skills else 'None'}")
 
 if __name__ == "__main__":
     main()
