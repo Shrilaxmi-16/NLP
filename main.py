@@ -1,127 +1,136 @@
 import streamlit as st
-from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.decomposition import LatentDirichletAllocation
-from transformers import pipeline
-from textblob import TextBlob
 import re
-import nltk
+from PyPDF2 import PdfReader
+import matplotlib.pyplot as plt
+from wordcloud import WordCloud
+import pandas as pd
 
-# Ensure that necessary NLTK data is downloaded
-nltk.download('punkt')
-nltk.download('stopwords')
-nltk.download('wordnet')
+# Predefined lists of skills and common education keywords
+SKILLS_DB = [
+    'Python', 'Java', 'SQL', 'Machine Learning', 'Data Science', 'Deep Learning', 
+    'NLP', 'TensorFlow', 'Keras', 'Flask', 'Django', 'Pandas', 'NumPy', 'Matplotlib', 
+    'Data Analysis', 'AI', 'AWS', 'GCP', 'Azure', 'Hadoop'
+]
 
-# Function to summarize text
-def summarize_text(text, max_length=50000):
-    summarization_pipeline = pipeline("summarization")
-    summary = summarization_pipeline(text, max_length=max_length, min_length=50, do_sample=False)
-    return summary[0]['summary_text']
+EDUCATION_DB = [
+    'B.Sc', 'M.Sc', 'B.Tech', 'M.Tech', 'PhD', 'MBA', 'Bachelor', 'Master', 'Diploma', 'Degree'
+]
 
-# Function to extract keywords
-def extract_keywords(text):
-    stop_words = set(stopwords.words('english'))
-    lemmatizer = WordNetLemmatizer()
+# Function to extract text from PDF
+def extract_text_from_pdf(pdf_file):
+    reader = PdfReader(pdf_file)
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text() or ""
+    return text
 
-    words = word_tokenize(text)
-    words = [lemmatizer.lemmatize(word.lower()) for word in words if word.isalnum()]
-    keywords = [word for word in words if word not in stop_words and len(word) > 1]
+# Function to extract contact details using regex
+def extract_contact_details(text):
+    email = re.findall(r'\S+@\S+', text)
+    phone = re.findall(r'\b\d{10}\b', text)
+    return email, phone
 
-    counter = CountVectorizer().fit_transform([' '.join(keywords)])
-    vocabulary = CountVectorizer().fit([' '.join(keywords)]).vocabulary_
-    top_keywords = sorted(vocabulary, key=vocabulary.get, reverse=True)[:5]
+# Function to extract skills based on predefined list
+def extract_skills(text):
+    skills = [skill for skill in SKILLS_DB if re.search(r'\b' + re.escape(skill) + r'\b', text, re.IGNORECASE)]
+    return skills
 
-    return top_keywords
+# Function to extract education details based on predefined list
+def extract_education(text):
+    education_details = [edu for edu in EDUCATION_DB if re.search(r'\b' + re.escape(edu) + r'\b', text, re.IGNORECASE)]
+    return education_details
 
-# Function to perform topic modeling (LDA)
-def topic_modeling(text):
-    vectorizer = CountVectorizer(max_df=2, min_df=0.95, stop_words='english')
-    tf = vectorizer.fit_transform([text])
-    lda_model = LatentDirichletAllocation(n_components=5, max_iter=5, learning_method='online', random_state=42)
-    lda_model.fit(tf)
-    feature_names = vectorizer.get_feature_names_out()
-    topics = []
-    for topic_idx, topic in enumerate(lda_model.components_):
-        topics.append([feature_names[i] for i in topic.argsort()[:-6:-1]])
-    return topics
+# Function to extract company names and experience
+def extract_experience(text):
+    companies = re.findall(r'\b\w+(?:\s\w+)*(?: Inc| LLC| Ltd| Technologies| Corp)\b', text)
+    # Extract job titles and years (optional improvement)
+    job_titles = re.findall(r'\b(?:Manager|Engineer|Developer|Consultant|Analyst|Lead|Director)\b', text)
+    experience_dates = re.findall(r'\b(?:19|20)\d{2}\b', text)
+    return companies, job_titles, experience_dates
 
-# Function to extract YouTube video ID from URL
-def extract_video_id(url):
-    video_id = None
-    patterns = [
-        r'v=([^&]+)',  # Pattern for URLs with 'v=' parameter
-        r'youtu.be/([^?]+)',  # Pattern for shortened URLs
-        r'youtube.com/embed/([^?]+)'  # Pattern for embed URLs
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, url)
-        if match:
-            video_id = match.group(1)
-            break
-    return video_id
+# Function to match resume with a job description (simplified)
+def match_job_description(text, job_description):
+    skills = extract_skills(text)
+    job_skills = extract_skills(job_description)
+    matched_skills = [skill for skill in skills if skill in job_skills]
+    return matched_skills, len(matched_skills) / len(job_skills) if job_skills else 0
+
+# Function to create word cloud of extracted skills
+def generate_wordcloud(skills):
+    wordcloud = WordCloud(width=800, height=400, background_color="white").generate(" ".join(skills))
+    plt.figure(figsize=(10, 5))
+    plt.imshow(wordcloud, interpolation="bilinear")
+    plt.axis("off")
+    st.pyplot(plt)
+
+# Function to visualize skill match comparison using a bar chart
+def visualize_skill_match(resume_skills, job_skills):
+    skill_data = {'Skills': resume_skills, 'Match': [1 if skill in job_skills else 0 for skill in resume_skills]}
+    df = pd.DataFrame(skill_data)
+    st.bar_chart(df.set_index('Skills'))
+
+# Function to visualize education using a pie chart
+def visualize_education(education_details):
+    edu_count = pd.Series(education_details).value_counts()
+    fig, ax = plt.subplots()
+    ax.pie(edu_count, labels=edu_count.index, autopct='%1.1f%%', startangle=90)
+    ax.axis('equal')
+    st.pyplot(fig)
 
 # Main Streamlit app
 def main():
-    st.title("YouTube Video Summarizer")
+    st.title("Smart Resume Analyzer with Visualizations")
+    
+    st.write("Upload your resume in PDF format to extract and analyze relevant details.")
+    
+    pdf_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
+    
+    if pdf_file:
+        resume_text = extract_text_from_pdf(pdf_file)
+        st.subheader("Extracted Resume Text:")
+        st.write(resume_text)
 
-    # User input for YouTube video URL
-    video_url = st.text_input("Enter YouTube Video URL:", "")
+        email, phone = extract_contact_details(resume_text)
+        st.subheader("Contact Information:")
+        st.write(f"Email: {', '.join(email) if email else 'No email found'}")
+        st.write(f"Phone: {', '.join(phone) if phone else 'No phone number found'}")
 
-    # User customization options
-    max_summary_length = st.slider("Max Summary Length:", 1000, 20000, 50000)
+        skills = extract_skills(resume_text)
+        st.subheader("Extracted Skills:")
+        st.write(", ".join(skills) if skills else "No skills found")
 
-    if st.button("Summarize"):
-        try:
-            # Extract video ID from URL
-            video_id = extract_video_id(video_url)
-            if not video_id:
-                st.error("Invalid YouTube URL. Please enter a valid URL.")
-                return
+        if skills:
+            st.subheader("Skills Word Cloud")
+            generate_wordcloud(skills)
 
-            # Get transcript of the video
-            transcript = YouTubeTranscriptApi.get_transcript(video_id)
-            if not transcript:
-                st.error("Transcript not available for this video.")
-                return
+        companies, job_titles, experience_dates = extract_experience(resume_text)
+        st.subheader("Work Experience (Companies):")
+        st.write(", ".join(companies) if companies else "No experience found")
+        
+        st.subheader("Job Titles:")
+        st.write(", ".join(job_titles) if job_titles else "No job titles found")
+        
+        st.subheader("Experience Dates:")
+        st.write(", ".join(experience_dates) if experience_dates else "No dates found")
 
-            video_text = ' '.join([line['text'] for line in transcript])
+        education = extract_education(resume_text)
+        st.subheader("Education Details:")
+        st.write(", ".join(education) if education else "No education details found")
 
-            # Summarize the transcript
-            summary = summarize_text(video_text, max_length=max_summary_length)
+        if education:
+            st.subheader("Education Distribution")
+            visualize_education(education)
 
-            # Extract keywords from the transcript
-            keywords = extract_keywords(video_text)
+        # Job Description Matching (optional)
+        st.subheader("Job Description Matching")
+        job_desc = st.text_area("Paste Job Description", "")
+        if job_desc:
+            matched_skills, match_score = match_job_description(resume_text, job_desc)
+            st.write(f"Match Score: {match_score:.2%}")
+            st.write("Matched Skills: ", ", ".join(matched_skills))
 
-            # Perform topic modeling
-            topics = topic_modeling(video_text)
-
-            # Perform sentiment analysis
-            sentiment = TextBlob(video_text).sentiment
-
-            # Display summarized text, keywords, topics, and sentiment
-            st.subheader("Video Summary:")
-            st.write(summary)
-
-            st.subheader("Keywords:")
-            st.write(keywords)
-
-            st.subheader("Topics:")
-            for idx, topic in enumerate(topics):
-                st.write(f"Topic {idx+1}: {', '.join(topic)}")
-
-            st.subheader("Sentiment Analysis:")
-            st.write(f"Polarity: {sentiment.polarity}")
-            st.write(f"Subjectivity: {sentiment.subjectivity}")
-
-        except TranscriptsDisabled:
-            st.error("Transcripts are disabled for this video.")
-        except NoTranscriptFound:
-            st.error("No transcript found for this video.")
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
+            st.subheader("Skill Match Visualization")
+            visualize_skill_match(skills, extract_skills(job_desc))
 
 if __name__ == "__main__":
     main()
