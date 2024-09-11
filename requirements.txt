@@ -1,9 +1,6 @@
 streamlit
-youtube-transcript-api
-nltk
-scikit-learn
-transformers
-textblob
-numpy
-tensorflow
-tf-keras
+PyPDF2
+wordcloud
+matplotlib
+pandas
+
