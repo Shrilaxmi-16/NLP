@@ -4,3 +4,4 @@ wordcloud
 matplotlib
 pandas
 sklearn
+scikit-learn
