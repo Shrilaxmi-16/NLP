@@ -4,7 +4,6 @@ from PyPDF2 import PdfReader
 import matplotlib.pyplot as plt
 import pandas as pd
 from wordcloud import WordCloud
-from datetime import datetime
 
 # Predefined lists of skills and categories
 SKILLS_DB = {
@@ -55,7 +54,6 @@ def extract_experience_duration(text):
 
 # Function to extract company names, job titles, and locations using regex
 def extract_companies_job_titles(text):
-    # Pattern to capture potential company names and job titles
     company_pattern = r'\b(?:Inc|LLC|Ltd|Technologies|Corp|Company|Enterprises|Solutions)\b'
     title_pattern = r'\b(?:Manager|Engineer|Developer|Analyst|Consultant|Specialist|Lead|Director)\b'
     
@@ -86,9 +84,31 @@ def match_job_description(resume_skills, job_description):
 
 # Function to visualize the experience timeline
 def visualize_experience_timeline(companies, dates):
+    if not companies or not dates:
+        st.write("Not enough data to display the experience timeline.")
+        return
+
+    # Ensure lengths are the same
+    min_length = min(len(companies), len(dates))
+    if min_length == 0:
+        st.write("No data available for experience timeline.")
+        return
+
+    companies = companies[:min_length]
+    dates = dates[:min_length]
+
+    # Create DataFrame
     experience_df = pd.DataFrame({'Company': companies, 'Year': dates})
+
+    # Convert 'Year' to numeric
+    try:
+        experience_df['Year'] = pd.to_numeric(experience_df['Year'])
+    except ValueError:
+        st.write("Error converting years to numeric values.")
+        return
+
+    # Plot
     fig, ax = plt.subplots()
-    experience_df['Year'] = pd.to_numeric(experience_df['Year'])
     experience_df.set_index('Year').plot(kind='barh', ax=ax, legend=False)
     ax.set_xlabel('Year')
     ax.set_ylabel('Company')
