@@ -1,19 +1,31 @@
 import streamlit as st
 import re
 from PyPDF2 import PdfReader
-import matplotlib.pyplot as plt
 import pandas as pd
+import matplotlib.pyplot as plt
 from wordcloud import WordCloud
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.cluster import KMeans
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+from nltk.tokenize import sent_tokenize
+import nltk
 
-# Predefined lists of skills and categories
-SKILLS_DB = {
-    'Programming': ['Python', 'Java', 'C++', 'JavaScript', 'SQL'],
-    'Data Science': ['Machine Learning', 'Deep Learning', 'Data Science', 'NLP', 'TensorFlow', 'Keras', 'Pandas', 'NumPy'],
-    'Cloud': ['AWS', 'GCP', 'Azure', 'Hadoop'],
-    'Web Development': ['Flask', 'Django', 'HTML', 'CSS', 'React', 'Node.js']
-}
+# Download necessary NLTK data
+nltk.download('vader_lexicon')
 
-EDUCATION_DB = ['B.Sc', 'M.Sc', 'B.Tech', 'M.Tech', 'PhD', 'MBA', 'Bachelor', 'Master', 'Diploma', 'Degree']
+# Initialize sentiment analyzer
+sia = SentimentIntensityAnalyzer()
+
+# Predefined lists of skills and common education keywords
+SKILLS_DB = [
+    'Python', 'Java', 'SQL', 'Machine Learning', 'Data Science', 'Deep Learning', 
+    'NLP', 'TensorFlow', 'Keras', 'Flask', 'Django', 'Pandas', 'NumPy', 'Matplotlib', 
+    'Data Analysis', 'AI', 'AWS', 'GCP', 'Azure', 'Hadoop'
+]
+
+EDUCATION_DB = [
+    'B.Sc', 'M.Sc', 'B.Tech', 'M.Tech', 'PhD', 'MBA', 'Bachelor', 'Master', 'Diploma', 'Degree'
+]
 
 # Function to extract text from PDF
 def extract_text_from_pdf(pdf_file):
@@ -23,46 +35,28 @@ def extract_text_from_pdf(pdf_file):
         text += page.extract_text() or ""
     return text
 
-# Function to extract contact details using regex
-def extract_contact_details(text):
-    email = re.findall(r'\S+@\S+', text)
-    phone = re.findall(r'\b\d{10}\b', text)
-    return email, phone
+# Function to extract and preprocess resume text
+def preprocess_text(text):
+    text = text.lower()
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\d+', '', text)  # Remove digits
+    return text
 
-# Function to extract skills based on predefined categories
-def extract_skills_by_category(text):
-    skill_categories = {category: [] for category in SKILLS_DB}
-    for category, skills in SKILLS_DB.items():
-        for skill in skills:
-            if re.search(r'\b' + re.escape(skill) + r'\b', text, re.IGNORECASE):
-                skill_categories[category].append(skill)
-    return skill_categories
+# Function to analyze sentiment of the career objective
+def analyze_sentiment(text):
+    sentences = sent_tokenize(text)
+    sentiment_scores = [sia.polarity_scores(sentence)['compound'] for sentence in sentences]
+    return sentiment_scores
 
-# Function to extract education details
-def extract_education(text):
-    education_details = [edu for edu in EDUCATION_DB if re.search(r'\b' + re.escape(edu) + r'\b', text, re.IGNORECASE)]
-    return education_details
+# Function to cluster skills
+def cluster_skills(skills):
+    vectorizer = TfidfVectorizer()
+    X = vectorizer.fit_transform(skills)
+    kmeans = KMeans(n_clusters=3, random_state=0).fit(X)
+    clusters = kmeans.labels_
+    return clusters, kmeans.cluster_centers_
 
-# Function to calculate total years of experience based on dates found in the resume
-def extract_experience_duration(text):
-    dates = re.findall(r'(19|20)\d{2}', text)
-    if dates:
-        years = list(map(int, dates))
-        years.sort()
-        return years[-1] - years[0] if years else 0
-    return 0
-
-# Function to extract company names, job titles, and locations using regex
-def extract_companies_job_titles(text):
-    company_pattern = r'\b(?:Inc|LLC|Ltd|Technologies|Corp|Company|Enterprises|Solutions)\b'
-    title_pattern = r'\b(?:Manager|Engineer|Developer|Analyst|Consultant|Specialist|Lead|Director)\b'
-    
-    companies = re.findall(r'\b[A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)*(?: ' + company_pattern + r')', text)
-    job_titles = re.findall(title_pattern, text)
-    
-    return companies, job_titles
-
-# Function to create a word cloud of extracted skills
+# Function to create a word cloud for skills
 def generate_wordcloud(skills):
     wordcloud = WordCloud(width=800, height=400, background_color="white").generate(" ".join(skills))
     plt.figure(figsize=(10, 5))
@@ -70,53 +64,20 @@ def generate_wordcloud(skills):
     plt.axis("off")
     st.pyplot(plt)
 
-# Function to visualize skill categories as a bar chart
-def visualize_skill_categories(skill_categories):
-    categories = {category: len(skills) for category, skills in skill_categories.items()}
-    df = pd.DataFrame(list(categories.items()), columns=['Category', 'Count'])
-    st.bar_chart(df.set_index('Category'))
-
-# Function to match job description skills with resume skills
-def match_job_description(resume_skills, job_description):
-    job_skills = extract_skills_by_category(job_description)
-    matched_skills = {cat: [skill for skill in resume_skills[cat] if skill in job_skills[cat]] for cat in resume_skills}
-    return matched_skills
-
-# Function to visualize the experience timeline
-def visualize_experience_timeline(companies, dates):
-    if not companies or not dates:
-        st.write("Not enough data to display the experience timeline.")
-        return
-
-    # Ensure lengths are the same
-    min_length = min(len(companies), len(dates))
-    if min_length == 0:
-        st.write("No data available for experience timeline.")
-        return
-
-    companies = companies[:min_length]
-    dates = dates[:min_length]
-
-    # Create DataFrame
-    experience_df = pd.DataFrame({'Company': companies, 'Year': dates})
-
-    # Convert 'Year' to numeric
-    try:
-        experience_df['Year'] = pd.to_numeric(experience_df['Year'])
-    except ValueError:
-        st.write("Error converting years to numeric values.")
-        return
-
-    # Plot
-    fig, ax = plt.subplots()
-    experience_df.set_index('Year').plot(kind='barh', ax=ax, legend=False)
-    ax.set_xlabel('Year')
-    ax.set_ylabel('Company')
-    st.pyplot(fig)
+# Function to visualize clustered skills
+def visualize_clustered_skills(skills, clusters):
+    df = pd.DataFrame({'Skill': skills, 'Cluster': clusters})
+    cluster_counts = df['Cluster'].value_counts().sort_index()
+    plt.figure(figsize=(10, 5))
+    plt.bar(cluster_counts.index, cluster_counts.values)
+    plt.xlabel('Cluster')
+    plt.ylabel('Number of Skills')
+    plt.title('Skills Distribution by Cluster')
+    st.pyplot(plt)
 
 # Main Streamlit app
 def main():
-    st.title("Enhanced Smart Resume Analyzer (No spaCy)")
+    st.title("Enhanced Smart Resume Analyzer")
 
     st.write("Upload your resume in PDF format to extract and analyze relevant details.")
     
@@ -127,52 +88,46 @@ def main():
         st.subheader("Extracted Resume Text:")
         st.write(resume_text)
 
-        email, phone = extract_contact_details(resume_text)
-        st.subheader("Contact Information:")
-        st.write(f"Email: {', '.join(email) if email else 'No email found'}")
-        st.write(f"Phone: {', '.join(phone) if phone else 'No phone number found'}")
+        preprocessed_text = preprocess_text(resume_text)
+        
+        # Analyze Career Objectives
+        career_objective = re.search(r'career objective(.*?)(education|experience|skills|certifications)', preprocessed_text, re.S)
+        if career_objective:
+            career_objective_text = career_objective.group(1)
+            sentiment_scores = analyze_sentiment(career_objective_text)
+            st.subheader("Career Objective Sentiment Analysis:")
+            st.write(f"Sentiment Scores: {sentiment_scores}")
+            st.write(f"Average Sentiment Score: {sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 'N/A'}")
 
-        skill_categories = extract_skills_by_category(resume_text)
-        st.subheader("Extracted Skills by Category:")
-        for category, skills in skill_categories.items():
-            st.write(f"{category}: {', '.join(skills) if skills else 'None'}")
-
-        if any(skill_categories.values()):
+        # Extract and Cluster Skills
+        skills = [skill for skill in SKILLS_DB if re.search(r'\b' + re.escape(skill) + r'\b', preprocessed_text, re.IGNORECASE)]
+        if skills:
+            st.subheader("Extracted Skills:")
+            st.write(", ".join(skills) if skills else "No skills found")
             st.subheader("Skills Word Cloud")
-            all_skills = [skill for skills in skill_categories.values() for skill in skills]
-            generate_wordcloud(all_skills)
-
-            st.subheader("Skills Category Analysis")
-            visualize_skill_categories(skill_categories)
-
-        education = extract_education(resume_text)
+            generate_wordcloud(skills)
+            clusters, cluster_centers = cluster_skills(skills)
+            st.subheader("Clustered Skills Analysis")
+            visualize_clustered_skills(skills, clusters)
+        
+        # Extract Education Details
+        education = [edu for edu in EDUCATION_DB if re.search(r'\b' + re.escape(edu) + r'\b', preprocessed_text, re.IGNORECASE)]
         st.subheader("Education Details:")
         st.write(", ".join(education) if education else "No education details found")
 
-        experience_duration = extract_experience_duration(resume_text)
-        st.subheader("Total Years of Experience:")
-        st.write(f"{experience_duration} years")
+        # Total Years of Experience
+        experience_duration = re.findall(r'(19|20)\d{2}', resume_text)
+        if experience_duration:
+            experience_duration = sorted(set(int(year) for year in experience_duration))
+            total_experience = experience_duration[-1] - experience_duration[0] if len(experience_duration) > 1 else 0
+            st.subheader("Total Years of Experience:")
+            st.write(f"{total_experience} years")
 
-        companies, job_titles = extract_companies_job_titles(resume_text)
-        st.subheader("Companies Worked For:")
-        st.write(", ".join(companies) if companies else "No companies found")
-
-        st.subheader("Job Titles:")
-        st.write(", ".join(job_titles) if job_titles else "No job titles found")
-
-        st.subheader("Experience Timeline (based on extracted dates)")
-        experience_years = re.findall(r'(19|20)\d{2}', resume_text)
-        if companies and experience_years:
-            visualize_experience_timeline(companies[:len(experience_years)], experience_years)
-
-        # Job Description Matching (optional)
-        st.subheader("Job Description Matching")
-        job_desc = st.text_area("Paste Job Description", "")
-        if job_desc:
-            matched_skills = match_job_description(skill_categories, job_desc)
-            st.write("Matched Skills by Category:")
-            for category, skills in matched_skills.items():
-                st.write(f"{category}: {', '.join(skills) if skills else 'None'}")
+        # Contact Information
+        email, phone = re.findall(r'\S+@\S+', resume_text), re.findall(r'\b\d{10}\b', resume_text)
+        st.subheader("Contact Information:")
+        st.write(f"Email: {', '.join(email) if email else 'No email found'}")
+        st.write(f"Phone: {', '.join(phone) if phone else 'No phone number found'}")
 
 if __name__ == "__main__":
     main()
