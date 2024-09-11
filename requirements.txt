@@ -3,4 +3,4 @@ PyPDF2
 wordcloud
 matplotlib
 pandas
-
+sklearn
