@@ -181,23 +181,32 @@ def display_msp_vs_wpi_trends(data):
 def main():
     st.title('MGNREGA and Crop Analysis by State')
 
-    # Sidebar for state selection
-    st.sidebar.header('State Selection')
+    # Display dataset columns to debug
+    st.write("Dataset columns:", data.columns)
+
+    # State selection
     states = data['State_x'].unique()
     selected_state = st.sidebar.selectbox('Select a state', states)
+
+    # Debugging: Display the first few rows of data
+    st.write(f"Data for {selected_state}")
+    st.write(state_data.head())
+
+    # Filter data for the selected state
+    try:
+        state_data = get_state_data(data, selected_state)
+    except KeyError as e:
+        st.error(f"Error: {e}")
+        return
 
     # Create sections for exploration, visualization, and prediction
     st.sidebar.markdown("### Sections")
     sections = ['Data Overview', 'Visualizations', 'Predictions for 2024 and 2025', 'MSP vs WPI Trends']
     selected_section = st.sidebar.radio('Go to', sections)
 
-    # Filter data for the selected state
-    state_data = get_state_data(data, selected_state)
-
     # Data overview section
     if selected_section == 'Data Overview':
         st.subheader(f"Data Overview for {selected_state}")
-        st.write(f"Data for {selected_state}")
         st.dataframe(state_data)
 
         # Generate summary statistics
@@ -224,11 +233,10 @@ def main():
     # Prediction section with visualizations
     elif selected_section == 'Predictions for 2024 and 2025':
         display_predictions_with_visualization(state_data, selected_state)
-    
-    # MSP vs WPI analysis section
-    elif selected_section == 'MSP vs WPI Analysis':
-        msp_wpi_trend_analysis_df = analyze_msp_vs_wpi_trends(data)
-        visualize_msp_wpi_trends(msp_wpi_trend_analysis_df)
+
+    # MSP vs WPI trends section
+    elif selected_section == 'MSP vs WPI Trends':
+        display_msp_vs_wpi_trends(data)
 
 if __name__ == "__main__":
     main()
