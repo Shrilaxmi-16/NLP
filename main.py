@@ -56,8 +56,16 @@ def match_job_description(text, job_description):
 
 # Plot skill matching
 def plot_skill_match(matched_skills, job_skills):
+    if len(job_skills) == 0:
+        st.write("No skills found in the job description for matching.")
+        return
+
     matched_count = len(matched_skills)
     unmatched_count = len(job_skills) - matched_count
+
+    if matched_count == 0 and unmatched_count == 0:
+        st.write("No skills available for comparison.")
+        return
 
     labels = ['Matched Skills', 'Unmatched Skills']
     sizes = [matched_count, unmatched_count]
