@@ -181,9 +181,6 @@ def display_msp_vs_wpi_trends(data):
 def main():
     st.title('MGNREGA and Crop Analysis by State')
 
-    # Load the dataset
-    data = load_data()
-
     # Sidebar for state selection
     st.sidebar.header('State Selection')
     states = data['State_x'].unique()
