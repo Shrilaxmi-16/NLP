@@ -47,6 +47,8 @@ def visualize_state_data(state_data, selected_state):
         plt.title(f"MGNREGA Employment Demand Over Years in {selected_state}")
         st.pyplot(fig)
 
+
+  
     # Line plot for crop production across years
     if 'year' in state_data.columns and 'Production_(in_Tonnes)' in state_data.columns:
         fig, ax = plt.subplots()
@@ -54,6 +56,8 @@ def visualize_state_data(state_data, selected_state):
         plt.title(f"Crop Production Over Years in {selected_state}")
         st.pyplot(fig)
 
+
+  
     # Line plot for rainfall across years
     if 'year' in state_data.columns and 'Annual_rainfall' in state_data.columns:
         fig, ax = plt.subplots()
@@ -61,6 +65,8 @@ def visualize_state_data(state_data, selected_state):
         plt.title(f"Annual Rainfall Over Years in {selected_state}")
         st.pyplot(fig)
 
+
+  
     # Line plot for MSP across years
     if 'year' in state_data.columns and 'MSP' in state_data.columns:
         fig, ax = plt.subplots()
@@ -119,6 +125,8 @@ def visualize_state_data(state_data, selected_state):
         plt.title(f"MGNREGA Employment Demand Over Years in {selected_state}")
         st.pyplot(fig)
 
+
+  
     # Bar chart for crop production by year
     if 'year' in state_data.columns and 'Production_(in_Tonnes)' in state_data.columns:
         fig, ax = plt.subplots()
@@ -133,6 +141,8 @@ def visualize_state_data(state_data, selected_state):
         plt.title(f"Crop Production vs. Rainfall in {selected_state} (Scatter Plot)")
         st.pyplot(fig)
 
+
+  
     # Box plot for MSP
     if 'MSP' in state_data.columns:
         fig, ax = plt.subplots()
@@ -140,6 +150,8 @@ def visualize_state_data(state_data, selected_state):
         plt.title(f"Minimum Support Price (MSP) Distribution Over Years in {selected_state} (Box Plot)")
         st.pyplot(fig)
 
+
+  
     # Heatmap for correlations between numerical variables
     numerical_columns = ['Employment_demanded', 'Employment_offered', 'Production_(in_Tonnes)', 'Annual_rainfall', 'MSP']
     if set(numerical_columns).issubset(state_data.columns):
