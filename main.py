@@ -85,20 +85,12 @@ def extract_experience(text):
     
     return companies, experience_duration
 
-# Function to match resume with a job description (based on skills)
-def match_job_description(resume_text, job_description):
-    resume_skills, _ = extract_skills_with_proficiency(resume_text)
+# Function to match resume with a job description (simplified)
+def match_job_description(text, job_description):
+    skills, _ = extract_skills_with_proficiency(text)
     job_skills, _ = extract_skills_with_proficiency(job_description)
-    
-    if not job_skills:
-        return 0, [], job_skills  # No skills in job description
-    
-    matched_skills = [skill for skill in resume_skills if skill in job_skills]
-    
-    # Calculate percentage match
-    match_percentage = (len(matched_skills) / len(job_skills)) * 100
-    
-    return match_percentage, matched_skills, job_skills
+    matched_skills = [skill for skill in skills if skill in job_skills]
+    return len(matched_skills) / len(job_skills) if job_skills else 0, matched_skills, job_skills
 
 # Visualization Functions
 
@@ -125,14 +117,29 @@ def plot_skill_match(matched_skills, job_skills):
 
     st.pyplot(fig)
 
+# Plot word cloud
+def plot_word_cloud(text, title):
+    wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.imshow(wordcloud, interpolation='bilinear')
+    ax.axis('off')
+    st.subheader(title)
+    st.pyplot(fig)
+
+# Keyword frequency count
+def keyword_frequency(text):
+    words = re.findall(r'\b\w+\b', text)
+    word_count = Counter(words)
+    return word_count.most_common(10)
+
 # Main Streamlit app
 def main():
-    st.title("Smart Resume Analyzer with Job Matching Percentage")
-
-    st.write("Upload your resume in PDF format to extract and analyze relevant details, and match it with a job description.")
-
+    st.title("Smart Resume Analyzer with Enhanced Analysis and Visualization")
+    
+    st.write("Upload your resume in PDF format to extract and analyze relevant details with visual insights.")
+    
     pdf_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
-
+    
     if pdf_file:
         resume_text = extract_text_from_pdf(pdf_file)
         st.subheader("Extracted Resume Text:")
@@ -162,12 +169,27 @@ def main():
         st.subheader("Job Description Matching")
         job_desc = st.text_area("Paste Job Description", "")
         if job_desc:
-            match_percentage, matched_skills, job_skills = match_job_description(resume_text, job_desc)
-            st.write(f"Match Score: {match_percentage:.2f}%")
+            match_score, matched_skills, job_skills = match_job_description(resume_text, job_desc)
+            st.write(f"Match Score: {match_score:.2%}")
 
             # Skill match visualization
             st.subheader("Skill Match Visualization")
             plot_skill_match(matched_skills, job_skills)
+
+        # Word Cloud visualization for resume text
+        st.subheader("Resume Word Cloud")
+        plot_word_cloud(resume_text, "Resume Text Word Cloud")
+
+        # Word Cloud visualization for job description
+        if job_desc:
+            st.subheader("Job Description Word Cloud")
+            plot_word_cloud(job_desc, "Job Description Word Cloud")
+
+        # Keyword frequency count
+        st.subheader("Top 10 Most Frequent Keywords in Resume:")
+        keyword_freq = keyword_frequency(resume_text)
+        for word, freq in keyword_freq:
+            st.write(f"{word}: {freq} times")
 
 if __name__ == "__main__":
     main()
