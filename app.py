@@ -67,18 +67,44 @@ def visualize_state_data(state_data, selected_state):
         plt.title(f"Minimum Support Price (MSP) Over Years in {selected_state}")
         st.pyplot(fig)
 
-# Section for predictions
-def display_predictions(state_data, selected_state):
+# Section for predictions with visualization
+def display_predictions_with_visualization(state_data, selected_state):
     st.subheader(f"Predictions for 2024 and 2025 in {selected_state}")
     
     # List of columns for which predictions will be made
-    columns_to_predict = ['Employment_demanded', 'Production_(in_Tonnes)', 'Annual_rainfall', 'MSP']
+    columns_to_predict = {
+        'Employment_demanded': 'MGNREGA Employment Demand',
+        'Production_(in_Tonnes)': 'Crop Production (in Tonnes)',
+        'Annual_rainfall': 'Annual Rainfall (mm)',
+        'MSP': 'Minimum Support Price (INR)'
+    }
 
-    for col in columns_to_predict:
+    for col, col_display_name in columns_to_predict.items():
         if col in state_data.columns:
+            # Predict future values for 2024 and 2025
             future_years, future_predictions = predict_future(state_data, col)
-            st.write(f"Predicted {col} for 2024: {future_predictions[0]:.2f}")
-            st.write(f"Predicted {col} for 2025: {future_predictions[1]:.2f}")
+            
+            # Append predictions to the historical data
+            historical_years = state_data['year'].values
+            historical_values = state_data[col].values
+            
+            # Combine historical and predicted data
+            combined_years = np.concatenate([historical_years, future_years])
+            combined_values = np.concatenate([historical_values, future_predictions])
+
+            # Create line plot for historical and predicted values
+            fig, ax = plt.subplots()
+            sns.lineplot(x=historical_years, y=historical_values, label='Historical', ax=ax)
+            sns.lineplot(x=future_years, y=future_predictions, label='Predicted (2024, 2025)', ax=ax, linestyle="--", marker='o')
+            plt.title(f"{col_display_name} Over Years in {selected_state}")
+            plt.xlabel('Year')
+            plt.ylabel(col_display_name)
+            plt.legend()
+            st.pyplot(fig)
+
+            # Display the predicted values
+            st.write(f"Predicted {col_display_name} for 2024: {future_predictions[0]:.2f}")
+            st.write(f"Predicted {col_display_name} for 2025: {future_predictions[1]:.2f}")
             st.markdown("---")
 
 # Main function to render the Streamlit app
