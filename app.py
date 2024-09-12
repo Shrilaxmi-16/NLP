@@ -108,6 +108,48 @@ def display_predictions_with_visualization(state_data, selected_state):
             st.write(f"Predicted {col_display_name} for 2025: {future_predictions[1]:.2f}")
             st.markdown("---")
 
+# Section for visualization
+def visualize_state_data(state_data, selected_state):
+    st.subheader(f"Visualizations for {selected_state}")
+
+    # Line plot for MGNREGA demand across years
+    if 'year' in state_data.columns and 'Employment_demanded' in state_data.columns:
+        fig, ax = plt.subplots()
+        sns.lineplot(x='year', y='Employment_demanded', data=state_data, ax=ax)
+        plt.title(f"MGNREGA Employment Demand Over Years in {selected_state}")
+        st.pyplot(fig)
+
+    # Bar chart for crop production by year
+    if 'year' in state_data.columns and 'Production_(in_Tonnes)' in state_data.columns:
+        fig, ax = plt.subplots()
+        sns.barplot(x='year', y='Production_(in_Tonnes)', data=state_data, ax=ax)
+        plt.title(f"Crop Production Over Years in {selected_state} (Bar Chart)")
+        st.pyplot(fig)
+
+    # Scatter plot for production vs. rainfall
+    if 'Production_(in_Tonnes)' in state_data.columns and 'Annual_rainfall' in state_data.columns:
+        fig, ax = plt.subplots()
+        sns.scatterplot(x='Annual_rainfall', y='Production_(in_Tonnes)', data=state_data, ax=ax)
+        plt.title(f"Crop Production vs. Rainfall in {selected_state} (Scatter Plot)")
+        st.pyplot(fig)
+
+    # Box plot for MSP
+    if 'MSP' in state_data.columns:
+        fig, ax = plt.subplots()
+        sns.boxplot(x='year', y='MSP', data=state_data, ax=ax)
+        plt.title(f"Minimum Support Price (MSP) Distribution Over Years in {selected_state} (Box Plot)")
+        st.pyplot(fig)
+
+    # Heatmap for correlations between numerical variables
+    numerical_columns = ['Employment_demanded', 'Employment_offered', 'Production_(in_Tonnes)', 'Annual_rainfall', 'MSP']
+    if set(numerical_columns).issubset(state_data.columns):
+        fig, ax = plt.subplots()
+        corr = state_data[numerical_columns].corr()
+        sns.heatmap(corr, annot=True, cmap='coolwarm', ax=ax)
+        plt.title(f"Correlation Heatmap of Key Variables in {selected_state}")
+        st.pyplot(fig)
+
+
 # Main function to render the Streamlit app
 def main():
     st.title('MGNREGA and Crop Analysis by State')
