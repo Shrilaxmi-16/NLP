@@ -11,6 +11,7 @@ with st.expander('Data'):
   st.write('## Dataset')
   data= pd.read_csv('https://raw.githubusercontent.com/sumukhahe/ML_Project/main/data/dataset.csv')
   data
+  
 # Filter data by state
 def get_state_data(data, state):
     return data[(data['State_x'] == state) | (data['State_y'] == state)]
