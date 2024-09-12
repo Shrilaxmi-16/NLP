@@ -12,6 +12,61 @@ with st.expander('Data'):
   data= pd.read_csv('https://raw.githubusercontent.com/sumukhahe/ML_Project/main/data/dataset.csv')
   data
   
+# Filter data by state
+def get_state_data(data, state):
+    return data[(data['State_x'] == state) | (data['State_y'] == state)]
+
+# Predict future values using linear regression
+def predict_future(data, column):
+    # Use only non-null data for regression
+    data = data[['year', column]].dropna()
+    
+    # Reshape the data
+    X = data['year'].values.reshape(-1, 1)
+    y = data[column].values
+    
+    # Create the regression model
+    model = LinearRegression()
+    model.fit(X, y)
+    
+    # Predict future values for 2024 and 2025
+    future_years = np.array([2024, 2025]).reshape(-1, 1)
+    predictions = model.predict(future_years)
+    
+    return future_years.flatten(), predictions
+
+# Section for visualization
+def visualize_state_data(state_data, selected_state):
+    st.subheader(f"Visualizations for {selected_state}")
+
+    # Line plot for MGNREGA demand across years
+    if 'year' in state_data.columns and 'Employment_demanded' in state_data.columns:
+        fig, ax = plt.subplots()
+        sns.lineplot(x='year', y='Employment_demanded', data=state_data, ax=ax)
+        plt.title(f"MGNREGA Employment Demand Over Years in {selected_state}")
+        st.pyplot(fig)
+
+    # Line plot for crop production across years
+    if 'year' in state_data.columns and 'Production_(in_Tonnes)' in state_data.columns:
+        fig, ax = plt.subplots()
+        sns.lineplot(x='year', y='Production_(in_Tonnes)', data=state_data, ax=ax)
+        plt.title(f"Crop Production Over Years in {selected_state}")
+        st.pyplot(fig)
+
+    # Line plot for rainfall across years
+    if 'year' in state_data.columns and 'Annual_rainfall' in state_data.columns:
+        fig, ax = plt.subplots()
+        sns.lineplot(x='year', y='Annual_rainfall', data=state_data, ax=ax)
+        plt.title(f"Annual Rainfall Over Years in {selected_state}")
+        st.pyplot(fig)
+
+    # Line plot for MSP across years
+    if 'year' in state_data.columns and 'MSP' in state_data.columns:
+        fig, ax = plt.subplots()
+        sns.lineplot(x='year', y='MSP', data=state_data, ax=ax)
+        plt.title(f"Minimum Support Price (MSP) Over Years in {selected_state}")
+        st.pyplot(fig)
+
 # Section for predictions with visualization
 def display_predictions_with_visualization(state_data, selected_state):
     st.subheader(f"Predictions for 2024 and 2025 in {selected_state}")
@@ -102,4 +157,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
