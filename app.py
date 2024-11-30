@@ -1,214 +1,82 @@
 import streamlit as st
 import pandas as pd
-import seaborn as sns
+import base64
 import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
-import scipy.stats as stats
-from sklearn.linear_model import LinearRegression
+import yfinance as yf
 
-# Load the dataset
-with st.expander('Data'):
-  st.write('## Dataset')
-  data= pd.read_csv('https://raw.githubusercontent.com/sumukhahe/ML_Project/main/data/dataset.csv')
-  data
+st.title('S&P 500 App')
 
+st.markdown("""
+This app retrieves the list of the **S&P 500** (from Wikipedia) and its corresponding **stock closing price** (year-to-date)!
+* **Python libraries:** base64, pandas, streamlit, numpy, matplotlib, seaborn
+* **Data source:** [Wikipedia](https://en.wikipedia.org/wiki/List_of_S%26P_500_companies).
+""")
 
-# Filter data by state
-def get_state_data(data, state):
-    return data[(data['State_x'] == state) | (data['State_y'] == state)]
+st.sidebar.header('User Input Features')
 
-# Predict future values using linear regression
-def predict_future(data, column):
-    # Use only non-null data for regression
-    data = data[['year', column]].dropna()
-    
-    # Reshape the data
-    X = data['year'].values.reshape(-1, 1)
-    y = data[column].values
-    
-    # Create the regression model
-    model = LinearRegression()
-    model.fit(X, y)
-    
-    # Predict future values for 2024 and 2025
-    future_years = np.array([2024, 2025]).reshape(-1, 1)
-    predictions = model.predict(future_years)
-    
-    return future_years.flatten(), predictions
+# Web scraping of S&P 500 data
+#
+@st.cache
+def load_data():
+    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+    html = pd.read_html(url, header = 0)
+    df = html[0]
+    return df
 
-# Section for visualization
-def visualize_state_data(state_data, selected_state):
-    st.subheader(f"Visualizations for {selected_state}")
+df = load_data()
+sector = df.groupby('GICS Sector')
 
-    # Line plot for MGNREGA demand across years
-    if 'year' in state_data.columns and 'Employment_demanded' in state_data.columns:
-        fig, ax = plt.subplots()
-        sns.lineplot(x='year', y='Employment_demanded', data=state_data, ax=ax)
-        plt.title(f"MGNREGA Employment Demand Over Years in {selected_state}")
-        st.pyplot(fig)
+# Sidebar - Sector selection
+sorted_sector_unique = sorted( df['GICS Sector'].unique() )
+selected_sector = st.sidebar.multiselect('Sector', sorted_sector_unique, sorted_sector_unique)
 
+# Filtering data
+df_selected_sector = df[ (df['GICS Sector'].isin(selected_sector)) ]
 
-  
-    # Line plot for crop production across years
-    if 'year' in state_data.columns and 'Production_(in_Tonnes)' in state_data.columns:
-        fig, ax = plt.subplots()
-        sns.lineplot(x='year', y='Production_(in_Tonnes)', data=state_data, ax=ax)
-        plt.title(f"Crop Production Over Years in {selected_state}")
-        st.pyplot(fig)
+st.header('Display Companies in Selected Sector')
+st.write('Data Dimension: ' + str(df_selected_sector.shape[0]) + ' rows and ' + str(df_selected_sector.shape[1]) + ' columns.')
+st.dataframe(df_selected_sector)
 
+# Download S&P500 data
+# https://discuss.streamlit.io/t/how-to-download-file-in-streamlit/1806
+def filedownload(df):
+    csv = df.to_csv(index=False)
+    b64 = base64.b64encode(csv.encode()).decode()  # strings <-> bytes conversions
+    href = f'<a href="data:file/csv;base64,{b64}" download="SP500.csv">Download CSV File</a>'
+    return href
 
-  
-    # Line plot for rainfall across years
-    if 'year' in state_data.columns and 'Annual_rainfall' in state_data.columns:
-        fig, ax = plt.subplots()
-        sns.lineplot(x='year', y='Annual_rainfall', data=state_data, ax=ax)
-        plt.title(f"Annual Rainfall Over Years in {selected_state}")
-        st.pyplot(fig)
+st.markdown(filedownload(df_selected_sector), unsafe_allow_html=True)
 
+# https://pypi.org/project/yfinance/
 
-  
-    # Line plot for MSP across years
-    if 'year' in state_data.columns and 'MSP' in state_data.columns:
-        fig, ax = plt.subplots()
-        sns.lineplot(x='year', y='MSP', data=state_data, ax=ax)
-        plt.title(f"Minimum Support Price (MSP) Over Years in {selected_state}")
-        st.pyplot(fig)
+data = yf.download(
+        tickers = list(df_selected_sector[:10].Symbol),
+        period = "ytd",
+        interval = "1d",
+        group_by = 'ticker',
+        auto_adjust = True,
+        prepost = True,
+        threads = True,
+        proxy = None
+    )
 
-# Section for predictions with visualization
-def display_predictions_with_visualization(state_data, selected_state):
-    st.subheader(f"Predictions for 2024 and 2025 in {selected_state}")
-    
-    # List of columns for which predictions will be made
-    columns_to_predict = {
-        'Employment_demanded': 'MGNREGA Employment Demand',
-        'Production_(in_Tonnes)': 'Crop Production (in Tonnes)',
-        'Annual_rainfall': 'Annual Rainfall (mm)',
-        'MSP': 'Minimum Support Price (INR)'
-    }
+# Plot Closing Price of Query Symbol
+def price_plot(symbol):
+  df = pd.DataFrame(data[symbol].Close)
+  df['Date'] = df.index
+  plt.fill_between(df.Date, df.Close, color='skyblue', alpha=0.3)
+  plt.plot(df.Date, df.Close, color='skyblue', alpha=0.8)
+  plt.xticks(rotation=90)
+  plt.title(symbol, fontweight='bold')
+  plt.xlabel('Date', fontweight='bold')
+  plt.ylabel('Closing Price', fontweight='bold')
+  return st.pyplot()
 
-    for col, col_display_name in columns_to_predict.items():
-        if col in state_data.columns:
-            # Predict future values for 2024 and 2025
-            future_years, future_predictions = predict_future(state_data, col)
-            
-            # Append predictions to the historical data
-            historical_years = state_data['year'].values
-            historical_values = state_data[col].values
-            
-            # Combine historical and predicted data
-            combined_years = np.concatenate([historical_years, future_years])
-            combined_values = np.concatenate([historical_values, future_predictions])
+num_company = st.sidebar.slider('Number of Companies', 1, 5)
 
-            # Create line plot for historical and predicted values
-            fig, ax = plt.subplots()
-            sns.lineplot(x=historical_years, y=historical_values, label='Historical', ax=ax)
-            sns.lineplot(x=future_years, y=future_predictions, label='Predicted (2024, 2025)', ax=ax, linestyle="--", marker='o')
-            plt.title(f"{col_display_name} Over Years in {selected_state}")
-            plt.xlabel('Year')
-            plt.ylabel(col_display_name)
-            plt.legend()
-            st.pyplot(fig)
-
-            # Display the predicted values
-            st.write(f"Predicted {col_display_name} for 2024: {future_predictions[0]:.2f}")
-            st.write(f"Predicted {col_display_name} for 2025: {future_predictions[1]:.2f}")
-            st.markdown("---")
-
-# Section for visualization
-def visualize_state_data(state_data, selected_state):
-    st.subheader(f"Visualizations for {selected_state}")
-
-    # Line plot for MGNREGA demand across years
-    if 'year' in state_data.columns and 'Employment_demanded' in state_data.columns:
-        fig, ax = plt.subplots()
-        sns.lineplot(x='year', y='Employment_demanded', data=state_data, ax=ax)
-        plt.title(f"MGNREGA Employment Demand Over Years in {selected_state}")
-        st.pyplot(fig)
-
-
-  
-    # Bar chart for crop production by year
-    if 'year' in state_data.columns and 'Production_(in_Tonnes)' in state_data.columns:
-        fig, ax = plt.subplots()
-        sns.barplot(x='year', y='Production_(in_Tonnes)', data=state_data, ax=ax)
-        plt.title(f"Crop Production Over Years in {selected_state} (Bar Chart)")
-        st.pyplot(fig)
-
-    # Scatter plot for production vs. rainfall
-    if 'Production_(in_Tonnes)' in state_data.columns and 'Annual_rainfall' in state_data.columns:
-        fig, ax = plt.subplots()
-        sns.scatterplot(x='Annual_rainfall', y='Production_(in_Tonnes)', data=state_data, ax=ax)
-        plt.title(f"Crop Production vs. Rainfall in {selected_state} (Scatter Plot)")
-        st.pyplot(fig)
-
-
-  
-    # Box plot for MSP
-    if 'MSP' in state_data.columns:
-        fig, ax = plt.subplots()
-        sns.boxplot(x='year', y='MSP', data=state_data, ax=ax)
-        plt.title(f"Minimum Support Price (MSP) Distribution Over Years in {selected_state} (Box Plot)")
-        st.pyplot(fig)
-
-
-  
-    # Heatmap for correlations between numerical variables
-    numerical_columns = ['Employment_demanded', 'Employment_offered', 'Production_(in_Tonnes)', 'Annual_rainfall', 'MSP']
-    if set(numerical_columns).issubset(state_data.columns):
-        fig, ax = plt.subplots()
-        corr = state_data[numerical_columns].corr()
-        sns.heatmap(corr, annot=True, cmap='coolwarm', ax=ax)
-        plt.title(f"Correlation Heatmap of Key Variables in {selected_state}")
-        st.pyplot(fig)
-
-
-# Main function to render the Streamlit app
-def main():
-    st.title('MGNREGA and Crop Analysis by State')
-
-    # Sidebar for state selection
-    st.sidebar.header('State Selection')
-    states = data['State_x'].unique()
-    selected_state = st.sidebar.selectbox('Select a state', states)
-
-    # Create sections for exploration, visualization, and prediction
-    st.sidebar.markdown("### Sections")
-    sections = ['Data Overview', 'Visualizations', 'Predictions for 2024 and 2025']
-    selected_section = st.sidebar.radio('Go to', sections)
-
-    # Filter data for the selected state
-    state_data = get_state_data(data, selected_state)
-
-    # Data overview section
-    if selected_section == 'Data Overview':
-        st.subheader(f"Data Overview for {selected_state}")
-        st.write(f"Data for {selected_state}")
-        st.dataframe(state_data)
-
-        # Generate summary statistics
-        st.subheader("Summary Statistics")
-        st.write(state_data.describe())
-
-        # QQ plot for normality test
-        st.subheader("Normality Test (QQ Plot)")
-        numerical_columns = ['Employment_demanded', 'Employment_offered', 'Employment_Availed', 
-                             'Area_(in_Ha)', 'Production_(in_Tonnes)', 'Yield_(kg/Ha)', 
-                             'Annual_rainfall', 'MSP']
-
-        selected_column = st.selectbox("Select a column for QQ Plot", numerical_columns)
-        qq_data = state_data[selected_column].dropna()
-
-        fig, ax = plt.subplots()
-        stats.probplot(qq_data, dist="norm", plot=ax)
-        st.pyplot(fig)
-
-    # Visualization section
-    elif selected_section == 'Visualizations':
-        visualize_state_data(state_data, selected_state)
-
-    # Prediction section with visualizations
-    elif selected_section == 'Predictions for 2024 and 2025':
-        display_predictions_with_visualization(state_data, selected_state)
-
-if __name__ == "__main__":
-    main()
+if st.button('Show Plots'):
+    st.header('Stock Closing Price')
+    for i in list(df_selected_sector.Symbol)[:num_company]:
+        price_plot(i)
